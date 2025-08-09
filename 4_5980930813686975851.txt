@@ -1,0 +1,324 @@
+class User {
+  int _id;
+  String _email;
+  String _password;
+  User(this._email, this._password);
+  User.fromMap(dynamic obj) {
+    this._email = obj['email'];
+    this._password = obj['password'];
+  }
+  String get username => _email;
+  String get password => _password;
+  Map<String, dynamic> toMap() {
+    var map = new Map<String, dynamic>();
+    map["email"] = _email;
+    map["password"] = _password;
+    return map;
+  }
+}
+
+
+
+....................................................................................................................................
+
+import 'package:flutter/material.dart';
+
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/services.dart';
+
+import 'package:path/path.dart';
+import 'dart:async';
+
+class DatabaseHelper {
+  static final DatabaseHelper _instance = new DatabaseHelper.internal();
+  factory DatabaseHelper() => _instance;
+  static Database _db;
+  Future<Database> get db async {
+    if (_db != null) {
+      return _db;
+    }
+    _db = await initDb();
+    return _db;
+  }
+  DatabaseHelper.internal();
+  initDb() async {
+    Directory documentDirectory = await getApplicationDocumentsDirectory();
+    String path = join(documentDirectory.path, "data_flutter.db");
+    
+    // Only copy if the database doesn't exist
+    //if (FileSystemEntity.typeSync(path) == FileSystemEntityType.notFound){
+      // Load database from asset and copy
+      ByteData data = await rootBundle.load(join('data', 'flutter.db'));
+      List<int> bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+      // Save copied asset to documents
+      await new File(path).writeAsBytes(bytes);
+    //}
+    var ourDb = await openDatabase(path);
+    return ourDb;
+  }
+}
+................................................................................................................................
+
+import 'dart:async';
+
+import 'package:sqlflite/user.dart';
+
+import 'Db_Helper.dart';
+class LoginCtr {
+DatabaseHelper con = new DatabaseHelper();
+//insertion
+  Future<int> saveUser(User user) async {
+    var dbClient = await con.db;
+    int res = await dbClient.insert("User", user.toMap());
+    return res;
+  }
+  //deletion
+  Future<int> deleteUser(User user) async {
+    var dbClient = await con.db;
+    int res = await dbClient.delete("User");
+    return res;
+  }
+  Future<User?> getLogin(String user, String password) async {
+    var dbClient = await con.db;
+    var res = await dbClient.rawQuery("SELECT * FROM user WHERE email= '$email' and password = '$password'");
+    
+    if (res.length > 0) {
+      return new User.fromMap(res.first);
+    }
+    return null;
+  }
+  Future<List<User>> getAllUser() async {
+    var dbClient = await con.db;
+    var res = await dbClient.query("user");
+    
+    List<User> list =
+        res.isNotEmpty ? res.map((c) => User.fromMap(c)).toList() : null;
+    return list;
+  }
+}
+..................................................................................................................................
+
+
+import 'package:flutter/material.dart';
+
+import 'package:login/models/user.dart';
+import 'package:sqlflite/user.dart';
+abstract class LoginCallBack {
+  void onLoginSuccess(User user);
+  void onLoginError(String error);
+}
+class LoginResponse {
+  LoginCallBack _callBack;
+  LoginRequest loginRequest = new LoginRequest();
+  LoginResponse(this._callBack);
+  doLogin(String username, String password) {
+    loginRequest
+        .getLogin(username, password)
+        .then((user) => _callBack.onLoginSuccess(user))
+        .catchError((onError) => _callBack.onLoginError(onError.toString()));
+  } 
+}
+...............................................................................
+
+
+import 'dart:async';
+import 'package:sqlflite/loginctr.dart';
+class LoginRequest {
+  LoginCtr con = new LoginCtr();
+ Future<User> getLogin(String username, String password) {
+    var result = con.getLogin(username,password);
+    return result;
+  }
+}
+......................................................................
+void onLoginError(String error) {
+    // TODO: implement onLoginError
+    _showSnackBar(error);
+    setState(() {
+      _isLoading = false;
+    });
+  }
+  @override
+  void onLoginSuccess(User user) async {    
+    if(user != null){
+      Navigator.of(context).pushNamed("/home");
+    }else{
+      // TODO: implement onLoginSuccess
+    _showSnackBar("Login sucess");
+    setState(() {
+      _isLoading = false;
+    });
+    }
+    
+  }
+}
+
+in login page
+
+
+
+
+
+import 'package:flutter/material.dart';
+import 'package:percent_indicator/percent_indicator.dart';
+import 'package:todo_app/HomePage/AllTasksTab.dart';
+import 'package:todo_app/HomePage/CompletedTasksTab.dart';
+import 'package:todo_app/HomePage/incompleteTasks.dart';
+import 'package:todo_app/add/AddTaskPage.dart';
+import 'package:todo_app/pages/ArchivePage.dart';
+
+import 'package:provider/provider.dart';
+import 'package:todo_app/pages/welcome.dart';
+
+class Homescreen extends StatefulWidget {
+  final String fullname;
+  final String email;
+ // final String password;
+
+  //Homescreen(this.fullname,this.email);
+  Homescreen({required this.fullname,required this.email});
+ // Homescreen({required this.password,required this.email});
+
+  @override
+  State<Homescreen> createState() => _HomescreenState();
+}
+
+class _HomescreenState extends State<Homescreen>
+    with SingleTickerProviderStateMixin{
+
+  late TabController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+
+        appBar: AppBar(
+          shape: RoundedRectangleBorder(
+              borderRadius:  BorderRadius.only(
+                  bottomRight: Radius.circular(50),
+                  bottomLeft: Radius.circular(50)
+              )
+          ),
+          backgroundColor: Colors.blue[400],
+          title:  const Text('My Home',style: TextStyle(fontWeight: FontWeight.bold , fontSize: 16 )),
+          centerTitle: true,
+          //leading: ElevatedButton(onPressed: () {}, child: const Icon(Icons.menu , size: 30,),style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[400])),
+
+          bottom: TabBar(
+              indicator: BoxDecoration(
+                  borderRadius: BorderRadius.circular(50), // Creates border
+                  color: Colors.indigo), //Change background color from here
+              controller: controller,
+              tabs: [
+                Tab(text: 'All'),
+                Tab(text: 'Incomplete'),
+                Tab(text: 'Complete'),
+              ]
+          ),
+
+        ),
+
+        floatingActionButton: FloatingActionButton(
+          backgroundColor: Colors.indigo[400],
+          child: Icon(Icons.add),
+          onPressed:(){
+            showModalBottomSheet(
+                isScrollControlled: true,
+                context: context,
+                builder: (context) => AddTaskPage()
+            );
+          },),
+
+        body: TabBarView(
+          controller: controller,
+          children: [
+            AllTasksTab(),
+            incompleteTasks(),
+            CompletedTasksTab(),
+          ],
+        ),
+
+        drawer: Drawer(
+          child: ListView(
+            padding: EdgeInsets.all(0),
+            children: [
+              Container(
+                color: Colors.blue,
+                padding: EdgeInsets.only(top:20,left:2,bottom: 20),
+                child: Column(children: [
+                  CircleAvatar(radius: 52,
+                    backgroundColor: Colors.grey,
+                    backgroundImage: AssetImage('assets/Images/forberg-avatar.jpg'),
+                  ),
+                  SizedBox(height: 12),
+                  Text(widget.fullname ,style:TextStyle(fontSize: 19,color: Colors.white)),
+                  SizedBox(height: 5),
+                  Text(widget.email,style:TextStyle(fontSize: 17,color: Colors.white)),
+                ]),
+              ),
+              ListTile(
+                leading: const Icon(Icons.playlist_add_check_rounded,color: Colors.black),
+                title: const Text('Done Page',style: TextStyle(fontSize: 16)),
+                onTap: () {
+                  onItemPressed(context,index:0);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.archive_rounded,color: Colors.black),
+                title: const Text('Archive page',style: TextStyle(fontSize: 16)),
+                onTap: () {
+                  onItemPressed(context,index:1);
+                },
+              ),
+              const Divider(thickness: 1 ,color: Colors.indigo,indent: 50,endIndent: 80,),
+              ListTile(
+                leading: const Icon(Icons.logout,color: Colors.black),
+                title: const Text('Log out',style: TextStyle(fontSize: 16)),
+                onTap: () {
+                  onItemPressed(context,index:2);
+                },
+              ),
+            ],
+          ),
+        )
+    );
+  }
+}
+void onItemPressed(BuildContext context,{required int index}){
+  Navigator.pop(context);
+  switch(index) {
+    case 0:
+      Navigator.push(context, MaterialPageRoute(builder: (context) => CompletedTasksTab()));
+      break;
+    case 1:
+      Navigator.push(context, MaterialPageRoute(builder: (context) => ArchivePage()));
+      break;
+    case 2:
+    Navigator.push(context, MaterialPageRoute(builder: (context) => welcome()));
+      break;
+    default:
+      Navigator.pop(context);
+      break;
+  };
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
